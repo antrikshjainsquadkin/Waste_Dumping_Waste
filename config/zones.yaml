@@ -1,0 +1,25 @@
+# Configurable Detection Zones (Open-Ground & Receptacle Bins)
+# Coordinates can be normalized [0.0..1.0] or absolute pixels.
+
+zones:
+  open_ground_default:
+    zone_id: "open_ground_default"
+    zone_type: "ground"
+    description: "Monitored ground area for open littering detection"
+    is_normalized: true
+    polygon:
+      - [0.0, 0.25]
+      - [1.0, 0.25]
+      - [1.0, 1.0]
+      - [0.0, 1.0]
+
+  bin_primary:
+    zone_id: "bin_primary"
+    zone_type: "bin"
+    description: "Designated waste bin receptacle"
+    is_normalized: true
+    polygon:
+      - [0.70, 0.55]
+      - [0.95, 0.55]
+      - [0.95, 0.95]
+      - [0.70, 0.95]

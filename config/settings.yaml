@@ -1,0 +1,63 @@
+# Waste Dumping Detection & Face Recognition V2 Settings
+
+system:
+  device: "cpu"
+  num_threads: 4
+  log_level: "INFO"
+
+camera:
+  default_source: "0"  # 0 for webcam, or path to video file, or rtsp://...
+  width: 640
+  height: 480
+  fps: 30
+  buffer_duration_seconds: 12.0  # Buffer holds 12s to comfortably cover 5s pre + 5s post
+
+models:
+  waste:
+    model_path: "models/waste/waste_detection_yolo11m.pt"
+    confidence_threshold: 0.25
+    image_size: 416
+    expected_sha256: "9f2d19a7ce386c6dbb95a725e6197f7b6fb699cd601bbeca9407034396f2ad6a"
+  person:
+    model_path: "models/person/person_detector.pt"
+    confidence_threshold: 0.35
+    image_size: 416
+    person_class_id: 0
+
+tracking:
+  tracker_type: "bytetrack"
+  track_high_thresh: 0.30
+  track_low_thresh: 0.10
+  new_track_thresh: 0.35
+  track_buffer: 30
+  match_thresh: 0.80
+
+association:
+  holding_max_distance_px: 160.0
+  holding_iou_threshold: 0.05
+  min_holding_frames: 2
+  separation_distance_delta_px: 20.0
+  separation_min_frames: 2
+  ground_contact_speed_px_per_s: 15.0
+  stationary_duration_seconds: 3.0  # 3.0 to 5.0 seconds of stability
+  event_cooldown_seconds: 4.0
+  ambiguity_margin_px: 35.0
+
+recognition:
+  model_name: "buffalo_s"
+  faces_json_path: "data/faces.json"
+  similarity_threshold: 0.50
+  ambiguity_margin: 0.03
+  min_det_score: 0.35
+  min_face_size_px: 30
+  min_sharpness: 12.0
+
+evidence:
+  pre_event_seconds: 5.0
+  post_event_seconds: 5.0
+  output_dir: "data/evidence"
+  video_codec: "mp4v"
+  save_face_crop: true
+
+storage:
+  csv_path: "data/events.csv"
