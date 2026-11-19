@@ -19,11 +19,14 @@ class RollingFrameBuffer:
         self._lock = threading.Lock()
 
     def append(self, timestamp: float, frame: np.ndarray, frame_idx: int) -> None:
-        """Append a frame to the ring buffer with defensive copying."""
+        """Append a frame to the ring buffer with defensive copying and temporal pruning."""
         # Ensure memory efficiency: copy frame
         frame_copy = frame.copy()
         with self._lock:
             self._buffer.append((timestamp, frame_copy, frame_idx))
+            # Temporal pruning: prune frames older than max_seconds to prevent memory growth
+            while len(self._buffer) > 1 and (timestamp - self._buffer[0][0]) > self.max_seconds:
+                self._buffer.popleft()
 
     def get_window(self, start_ts: float, end_ts: float) -> List[Tuple[float, np.ndarray, int]]:
         """Retrieve frames within [start_ts, end_ts] chronologically."""

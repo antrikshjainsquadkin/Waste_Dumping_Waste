@@ -1,0 +1,10 @@
+{
+  "video_name": "evt_20261119_102849_0003_evidence.mp4",
+  "expected_events": [
+    {
+      "event_type": "OPEN_GROUND_LITTERING",
+      "waste_category": "recyclable",
+      "description": "Person leaves recyclable item on ground and walks away"
+    }
+  ]
+}

@@ -116,16 +116,28 @@ class TestNonWasteRejection(unittest.TestCase):
         self.assertTrue(is_false, "Should reject waste candidate that matches human body")
 
     @patch("app.detection.waste_detector.YOLO")
-    def test_reject_limb_clothing(self, mock_yolo):
+    def test_reject_head_hair(self, mock_yolo):
         detector = WasteDetector(
             model_path="models/waste/waste_detection_yolo11m.pt",
             verify_sha256=False,
         )
         person_box = BoundingBox(100, 100, 250, 450)
-        # Small box enclosed entirely in torso/limb with moderate confidence
-        limb_box = BoundingBox(140, 220, 180, 280)
-        is_false = detector._is_false_human_detection(limb_box, 0.45, [person_box])
-        self.assertTrue(is_false, "Should reject sub-box enclosed in human torso/limb")
+        # Waste detection located on top crown of head / hair
+        head_box = BoundingBox(145, 100, 205, 160)
+        is_false = detector._is_false_human_detection(head_box, 0.85, [person_box])
+        self.assertTrue(is_false, "Should reject false waste detection on human head/hair")
+
+    @patch("app.detection.waste_detector.YOLO")
+    def test_reject_large_torso_clothing(self, mock_yolo):
+        detector = WasteDetector(
+            model_path="models/waste/waste_detection_yolo11m.pt",
+            verify_sha256=False,
+        )
+        person_box = BoundingBox(100, 100, 250, 450)
+        # Large clothing/shirt box covering majority of torso
+        shirt_box = BoundingBox(105, 180, 245, 330)
+        is_false = detector._is_false_human_detection(shirt_box, 0.55, [person_box])
+        self.assertTrue(is_false, "Should reject large clothing/shirt detection on human torso")
 
     @patch("app.detection.waste_detector.YOLO")
     def test_preserve_genuine_held_waste(self, mock_yolo):
@@ -134,10 +146,19 @@ class TestNonWasteRejection(unittest.TestCase):
             verify_sha256=False,
         )
         person_box = BoundingBox(100, 100, 250, 450)
-        # Waste object extending outward from hand (only partially overlapping)
-        held_bottle = BoundingBox(230, 280, 275, 330)
-        is_false = detector._is_false_human_detection(held_bottle, 0.85, [person_box])
-        self.assertFalse(is_false, "Should preserve genuine waste extending outward from body")
+        # Case A: Waste object extending outward from hand (partially overlapping)
+        held_bottle_outward = BoundingBox(230, 280, 275, 330)
+        self.assertFalse(
+            detector._is_false_human_detection(held_bottle_outward, 0.85, [person_box]),
+            "Should preserve genuine waste extending outward from body",
+        )
+
+        # Case B: Waste object held directly in front of body/torso with moderate confidence
+        held_bag_in_front = BoundingBox(140, 220, 180, 280)
+        self.assertFalse(
+            detector._is_false_human_detection(held_bag_in_front, 0.45, [person_box]),
+            "Should preserve genuine waste held directly in front of person body",
+        )
 
 
 class TestCSVStorage(unittest.TestCase):

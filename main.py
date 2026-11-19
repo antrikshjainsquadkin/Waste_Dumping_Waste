@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.coordination.coordinator import ApplicationCoordinator
+from app.ui.operator_menu import OperatorMenu
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,9 +35,14 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
+        "--menu",
+        action="store_true",
+        help="Launch interactive terminal operator menu",
+    )
+    parser.add_argument(
         "--source",
         type=str,
-        default="0",
+        default=None,
         help="Video source: webcam index ('0', '1'), path to video file (.mp4, .avi), or RTSP URL",
     )
     parser.add_argument(
@@ -67,6 +73,15 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+
+    # Launch interactive operator menu when no explicit source is passed, or --menu requested
+    if args.source is None or args.menu:
+        menu = OperatorMenu(
+            settings_path=args.config,
+            zones_path=args.zones,
+        )
+        menu.run_menu_loop()
+        return 0
 
     print("=" * 75)
     print("      WASTE DETECTION & FACE RECOGNITION V2 ARCHITECTURE")

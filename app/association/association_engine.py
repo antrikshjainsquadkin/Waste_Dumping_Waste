@@ -43,11 +43,14 @@ class WasteTrajectoryTracker:
         self.ground_contact_timestamp: Optional[float] = None
         self.stationary_start_timestamp: Optional[float] = None
 
-        # Stationary tracking
+        # Stationary & motion telemetry
         self.initial_unheld_frames = 0
         self.is_pre_existing_litter = False
         self.ground_persistence_frames = 0
-        self.last_ground_pos: Optional[Tuple[float, float]] = None
+        self.prev_center: Optional[Tuple[float, float]] = None
+        self.prev_timestamp: Optional[float] = None
+        self.stationary_anchor_pos: Optional[Tuple[float, float]] = None
+        self.is_rolling = False
         self.event_emitted = False
 
     def update_interaction(
@@ -61,6 +64,17 @@ class WasteTrajectoryTracker:
         self.last_observed_timestamp = timestamp
         is_held_this_frame = False
 
+        # If waste is already established as stationary on the ground, a person standing
+        # or walking near it without moving it is NOT holding it.
+        is_stationary_on_ground = (
+            self.stationary_anchor_pos is not None
+            and not self.is_rolling
+            and math.hypot(
+                self.current_bbox.center[0] - self.stationary_anchor_pos[0],
+                self.current_bbox.center[1] - self.stationary_anchor_pos[1]
+            ) < 25.0
+        )
+
         for p in persons:
             pid = p.track_id
             dist = self.current_bbox.distance_to(p.bbox)
@@ -68,33 +82,36 @@ class WasteTrajectoryTracker:
             ioa = self.current_bbox.ioa(p.bbox)
 
             # Check if waste is within person's torso or hand holding volume:
-            # Person upper 85% of height plus hand extension
+            # Below cranial head zone (> 15% height) and excluding ground-level foot zone (< 85% height)
             py1, py2 = p.bbox.y1, p.bbox.y2
             ph = p.bbox.height
-            holding_upper_y = py1
-            holding_lower_y = py1 + 0.88 * ph + 30.0
+            holding_upper_y = py1 + 0.15 * ph
+            holding_lower_y = py1 + 0.85 * ph
             wy = self.current_bbox.center[1]
 
-            is_holding = (
-                (holding_upper_y <= wy <= holding_lower_y)
-                and (iou >= holding_iou_thresh or ioa >= 0.15 or dist <= (p.bbox.width * 0.75 + 30.0))
+            is_in_hand_volume = (holding_upper_y <= wy <= holding_lower_y)
+            is_spatial_overlap = (
+                iou >= holding_iou_thresh
+                or ioa >= 0.15
+                or dist <= (p.bbox.width * 0.65 + 25.0)
             )
+
+            is_holding = is_in_hand_volume and is_spatial_overlap and (not is_stationary_on_ground)
 
             if is_holding:
                 is_held_this_frame = True
                 self.person_held_frames[pid] = self.person_held_frames.get(pid, 0) + 1
-                self.person_scores[pid] = self.person_scores.get(pid, 0.0) + 2.0
+                self.person_scores[pid] = self.person_scores.get(pid, 0.0) + 3.0
                 self.last_associated_person = pid
             elif dist <= max_dist:
                 self.person_prox_frames[pid] = self.person_prox_frames.get(pid, 0) + 1
                 self.person_scores[pid] = self.person_scores.get(pid, 0.0) + 0.5
-                if not self.last_associated_person:
-                    self.last_associated_person = pid
+                # Proximity alone does NOT set last_associated_person
 
         if not is_held_this_frame:
             if not self.person_held_frames:
                 self.initial_unheld_frames += 1
-                if self.initial_unheld_frames >= 3:
+                if self.initial_unheld_frames >= 2:
                     self.is_pre_existing_litter = True
 
 
@@ -130,6 +147,10 @@ class PersonWasteAssociationEngine:
         """Reset state across video streams."""
         self._track_states.clear()
         self._last_event_time = 0.0
+
+    def get_trajectory(self, track_id: str) -> Optional[WasteTrajectoryTracker]:
+        """Retrieve tracking state for a given waste track ID."""
+        return self._track_states.get(track_id)
 
     def process_frame(
         self,
@@ -179,9 +200,17 @@ class PersonWasteAssociationEngine:
                 continue
 
             # 3. Open-Ground Littering State Evaluation
-            # Condition: Pre-existing litter rejection
+            # Condition 1: Pre-existing litter rejection
             if traj.is_pre_existing_litter:
                 continue
+
+            # Condition 2: Genuine open-ground dumping requires that a person actually held or carried
+            # the waste prior to ground contact. If the waste was never held by any person,
+            # it is classified as pre-existing litter and does not emit a dumping event.
+            if not traj.person_held_frames:
+                if traj.initial_unheld_frames >= 2 or traj.ground_contact_timestamp is not None:
+                    traj.is_pre_existing_litter = True
+                    continue
 
             # Check if waste entered ground zone
             in_ground, ground_id = self.zones.is_in_ground_zone(w.bbox, frame_w, frame_h)
@@ -207,8 +236,11 @@ class PersonWasteAssociationEngine:
                 p_curr = next((p for p in persons if p.track_id == traj.last_associated_person), None)
                 if p_curr:
                     dist = w.bbox.distance_to(p_curr.bbox)
-                    # If still touching or very close to feet/body without separation, not released yet
-                    if dist < self.sep_delta and w.bbox.iou(p_curr.bbox) > 0.10:
+                    py1, py2 = p_curr.bbox.y1, p_curr.bbox.y2
+                    ph = p_curr.bbox.height
+                    wy = w.bbox.center[1]
+                    # If still inside person's holding volume or touching, not released yet
+                    if (py1 <= wy <= py1 + 0.82 * ph) and (dist < self.holding_max_dist * 0.65 or w.bbox.iou(p_curr.bbox) > 0.05):
                         has_separated = False
 
             if not has_separated:
@@ -219,34 +251,58 @@ class PersonWasteAssociationEngine:
 
             # Check ground stability & stationary condition (3-5 seconds)
             curr_pos = w.bbox.center
-            if traj.last_ground_pos is None:
-                traj.last_ground_pos = curr_pos
+
+            # Calculate frame-to-frame displacement and instant speed
+            if traj.prev_timestamp is not None and timestamp > traj.prev_timestamp:
+                dt = timestamp - traj.prev_timestamp
+                step_disp = math.hypot(curr_pos[0] - traj.prev_center[0], curr_pos[1] - traj.prev_center[1])
+                speed = step_disp / max(0.001, dt)
+            else:
+                speed = 0.0
+                step_disp = 0.0
+
+            traj.prev_center = curr_pos
+            traj.prev_timestamp = timestamp
+
+            # Anchor displacement tracking
+            if traj.stationary_anchor_pos is None:
+                traj.stationary_anchor_pos = curr_pos
                 traj.stationary_start_timestamp = timestamp
                 traj.ground_persistence_frames = 1
+                traj.is_rolling = False
+                anchor_disp = 0.0
             else:
-                displacement = math.hypot(curr_pos[0] - traj.last_ground_pos[0], curr_pos[1] - traj.last_ground_pos[1])
-                dt = max(0.001, timestamp - traj.last_observed_timestamp)
-                speed = displacement / dt
+                anchor_disp = math.hypot(
+                    curr_pos[0] - traj.stationary_anchor_pos[0],
+                    curr_pos[1] - traj.stationary_anchor_pos[1],
+                )
 
-                # Account for small rolling or wind jitter (speed < 20 px/s or displacement < 12 px)
-                if displacement < 15.0 or speed < 25.0:
-                    traj.ground_persistence_frames += 1
-                    traj.state = LitteringState.STATIONARY_CONFIRMATION
-                else:
-                    # Object moved significantly, reset stationary anchor
-                    traj.last_ground_pos = curr_pos
-                    traj.stationary_start_timestamp = timestamp
-                    traj.ground_persistence_frames = 1
+            # Object is stationary ONLY if BOTH instant speed is low (<25 px/s) AND anchor displacement is small (<25 px)
+            if speed < 25.0 and anchor_disp < 25.0:
+                traj.ground_persistence_frames += 1
+                traj.state = LitteringState.STATIONARY_CONFIRMATION
+                traj.is_rolling = False
+            else:
+                # Waste moves or rolls after impact! Reset stationary anchor and timer
+                traj.stationary_anchor_pos = curr_pos
+                traj.stationary_start_timestamp = timestamp
+                traj.ground_persistence_frames = 1
+                traj.is_rolling = True
+                traj.state = LitteringState.GROUND_CONTACT
+                logger.debug(
+                    "Waste %s in motion/rolling: speed=%.1f px/s, anchor_disp=%.1f px (timer reset)",
+                    traj.waste_track_id, speed, anchor_disp
+                )
 
-            # Evaluate if stationary for required duration or frame persistence
+            # Evaluate if stationary for required duration (configurable 3.0 to 5.0 seconds)
             stationary_time = (
                 (timestamp - traj.stationary_start_timestamp)
-                if traj.stationary_start_timestamp
+                if traj.stationary_start_timestamp is not None
                 else 0.0
             )
 
-            # Confirm littering if stationary for >= stationary_duration or >= 2 persistence frames in fast tests
-            if (stationary_time >= self.stationary_duration or traj.ground_persistence_frames >= 2) and (traj.person_held_frames or len(traj.person_scores) > 0):
+            # Must satisfy full stationary_duration without rolling
+            if stationary_time >= self.stationary_duration and not traj.is_rolling:
                 # Littering confirmed!
                 event = self._confirm_event(
                     traj=traj,
@@ -282,10 +338,12 @@ class PersonWasteAssociationEngine:
         attributed_pid, attr_status = self._resolve_attribution(traj)
 
         est_rel_ts = traj.estimated_release_timestamp or (timestamp - 1.0)
-        rel_iso = datetime.datetime.fromtimestamp(
-            est_rel_ts, tz=datetime.timezone.utc
-        ).isoformat()
-        conf_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        # Convert monotonic offset to true wall-clock UTC timestamp
+        wall_now = datetime.datetime.now(datetime.timezone.utc)
+        elapsed_since_rel = max(0.0, timestamp - est_rel_ts)
+        rel_time = wall_now - datetime.timedelta(seconds=elapsed_since_rel)
+        rel_iso = rel_time.isoformat()
+        conf_iso = wall_now.isoformat()
 
         event_id = f"evt_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{self._event_counter:04d}"
         self._event_counter += 1
@@ -326,20 +384,28 @@ class PersonWasteAssociationEngine:
         self,
         traj: WasteTrajectoryTracker,
     ) -> Tuple[Optional[str], AttributionStatus]:
-        """Compute responsible person attribution using historical interaction scores."""
-        if not traj.person_scores:
+        """Compute responsible person attribution using verified holding and trajectory evidence."""
+        # Genuine attribution requires that the person actually held/carried the waste
+        # Bystanders who merely walked or stood nearby (0 held frames) are strictly filtered out.
+        held_candidates = {
+            pid: score for pid, score in traj.person_scores.items()
+            if traj.person_held_frames.get(pid, 0) >= 1
+        }
+
+        if not held_candidates:
+            # No person ever held or carried the waste
             return None, AttributionStatus.UNATTRIBUTED
 
-        # Sort candidate persons by cumulative interaction score
+        # Sort verified thrower candidates by cumulative interaction score
         sorted_candidates = sorted(
-            traj.person_scores.items(), key=lambda item: item[1], reverse=True
+            held_candidates.items(), key=lambda item: item[1], reverse=True
         )
 
         top_pid, top_score = sorted_candidates[0]
         if top_score <= 0.0:
             return None, AttributionStatus.UNATTRIBUTED
 
-        # Check for ambiguity if multiple people interacted
+        # Check for ambiguity if multiple people actively held/interacted with the waste
         if len(sorted_candidates) > 1:
             second_pid, second_score = sorted_candidates[1]
             if (top_score - second_score) < 1.5 and second_score > 1.0:

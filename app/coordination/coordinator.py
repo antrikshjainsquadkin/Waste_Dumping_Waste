@@ -191,19 +191,26 @@ class ApplicationCoordinator:
                 for event in new_events:
                     self.total_events += 1
                     t_rec_start = time.perf_counter()
-                    # Retrieve associated person bounding box if available
+                    # Retrieve associated person bounding box and full track history
                     person_box_coords = None
-                    if event.person_track_id:
+                    person_history = []
+                    if event.person_track_id and self.tracker:
+                        person_history = self.tracker.get_person_history(event.person_track_id)
                         p_obj = next((p for p in tracked_persons if p.track_id == event.person_track_id), None)
                         if p_obj:
                             person_box_coords = (p_obj.bbox.x1, p_obj.bbox.y1, p_obj.bbox.x2, p_obj.bbox.y2)
 
-                    # Get recent window around event
-                    recent_frames = self.camera.buffer.get_window(ts - 2.5, ts + 0.5)
+                    # Search window centered around estimated release/interaction time
+                    rel_ts = event.estimated_release_timestamp
+                    recent_frames = self.camera.buffer.get_window(rel_ts - 2.5, rel_ts + 2.5)
+                    if not recent_frames:
+                        recent_frames = self.camera.buffer.get_window(ts - 3.0, ts + 0.5)
+
                     id_name, sim, r_stat, face_crop = self.face_adapter.process_event(
                         event=event,
                         frames=recent_frames,
                         person_box=person_box_coords,
+                        person_history=person_history,
                     )
                     event.recognized_person = id_name
                     event.recognition_status = r_stat

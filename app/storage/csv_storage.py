@@ -103,3 +103,16 @@ class CSVEventStorage:
     def total_records(self) -> int:
         with self._lock:
             return len(self._known_ids)
+
+    def get_all_records(self) -> List[dict]:
+        """Read all existing event records without modifying storage."""
+        with self._lock:
+            if not self.csv_path.is_file() or self.csv_path.stat().st_size == 0:
+                return []
+            try:
+                with open(self.csv_path, "r", newline="", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    return list(reader)
+            except Exception as e:
+                logger.error("Failed to read CSV records from %s: %s", self.csv_path, e)
+                return []

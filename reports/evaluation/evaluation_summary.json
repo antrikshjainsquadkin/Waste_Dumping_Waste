@@ -1,0 +1,33 @@
+{
+  "video": {
+    "name": "evt_20261119_104123_0001_evidence.mp4",
+    "path": "C:\\Users\\A\\OneDrive\\Desktop\\Waste_dumping_v2\\data\\evidence\\evt_20261119_104123_0001_evidence.mp4",
+    "resolution": "640x480",
+    "source_fps": 30.0,
+    "total_frames": 10,
+    "duration_seconds": 0.33
+  },
+  "performance": {
+    "frames_processed": 10,
+    "total_processing_seconds": 11.59,
+    "throughput_fps": 0.86,
+    "memory": {
+      "initial_rss_mb": 273.29,
+      "peak_rss_mb": 603.5,
+      "final_rss_mb": 587.07,
+      "delta_mb": 313.78
+    }
+  },
+  "events": {
+    "total_confirmed": 0,
+    "records": []
+  },
+  "ground_truth_metrics": {
+    "status": "NO_GROUND_TRUTH_PROVIDED"
+  },
+  "evidence_files": {
+    "csv_report": "C:\\Users\\A\\OneDrive\\Desktop\\Waste_dumping_v2\\reports\\evaluation\\events_eval.csv",
+    "clips_saved": 2,
+    "snapshots_saved": 1
+  }
+}

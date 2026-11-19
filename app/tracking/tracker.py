@@ -121,6 +121,13 @@ class SingleCategoryTracker:
             if self._lost_frames.get(tid, 0) == 0
         ]
 
+    def get_track_history(self, track_id: str) -> List[Tuple[int, float, BoundingBox]]:
+        """Retrieve historical frame observations for a specific track ID."""
+        for track in self._active_tracks.values():
+            if track.track_id == track_id:
+                return list(track.history)
+        return []
+
     def _match(
         self,
         track_boxes: List[BoundingBox],
@@ -203,3 +210,7 @@ class MultiObjectTrackingService:
         tracked_persons = self.person_tracker.update(person_detections, frame_idx, timestamp)
         tracked_waste = self.waste_tracker.update(waste_detections, frame_idx, timestamp)
         return tracked_persons, tracked_waste
+
+    def get_person_history(self, track_id: str) -> List[Tuple[int, float, BoundingBox]]:
+        """Retrieve frame observation history for a tracked person."""
+        return self.person_tracker.get_track_history(track_id)

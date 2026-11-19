@@ -32,7 +32,11 @@ class EvidenceRecorder:
         self.post_event_seconds = float(post_event_seconds)
         self.codec = str(codec)
 
-        self.evidence_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.evidence_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.warning("Could not create evidence directory %s: %s", self.evidence_dir, e)
+
         # Pending events waiting for post-event frames to accumulate: (event, flush_timestamp, face_crop)
         self._pending_clips: List[Tuple[ConfirmedLitterEvent, float, Optional[np.ndarray]]] = []
 
@@ -89,21 +93,48 @@ class EvidenceRecorder:
         video_path = self.evidence_dir / video_filename
         h, w = frames[0][1].shape[:2]
 
-        fourcc = cv2.VideoWriter_fourcc(*self.codec)
-        writer = cv2.VideoWriter(str(video_path), fourcc, 30.0, (w, h))
-        if writer.isOpened():
-            for _, frame, _ in frames:
-                writer.write(frame)
-            writer.release()
-            event.video_evidence_path = str(video_path)
-            logger.info("Saved video evidence (%d frames) to %s", len(frames), video_path)
-        else:
-            logger.error("Failed to open VideoWriter for %s", video_path)
+        try:
+            fourcc = cv2.VideoWriter_fourcc(*self.codec)
+            # Calculate actual playback FPS from frame timestamps to preserve real-world timing
+            if len(frames) > 1:
+                duration_sec = frames[-1][0] - frames[0][0]
+                if duration_sec > 0.5:
+                    actual_fps = max(1.0, min(30.0, float(len(frames) - 1) / duration_sec))
+                else:
+                    actual_fps = 10.0
+            else:
+                actual_fps = 10.0
+
+            writer = cv2.VideoWriter(str(video_path), fourcc, actual_fps, (w, h))
+            if writer.isOpened():
+                for _, frame, _ in frames:
+                    writer.write(frame)
+                writer.release()
+                event.video_evidence_path = str(video_path)
+                logger.info("Saved video evidence (%d frames, %.1f FPS) to %s", len(frames), actual_fps, video_path)
+            else:
+                logger.error("Failed to open VideoWriter for %s", video_path)
+                event.video_evidence_path = ""
+                note = "Video evidence failed: VideoWriter could not be opened"
+                event.notes = f"{event.notes}; {note}" if event.notes else note
+        except Exception as e:
+            logger.error("Error writing video evidence: %s", e)
+            event.video_evidence_path = ""
+            note = f"Video evidence error: {e}"
+            event.notes = f"{event.notes}; {note}" if event.notes else note
 
         # 2. Save face snapshot if available
         if face_crop is not None and face_crop.size > 0:
             face_filename = f"{event.event_id}_face.jpg"
             face_path = self.evidence_dir / face_filename
-            cv2.imwrite(str(face_path), face_crop)
-            event.face_snapshot_path = str(face_path)
-            logger.info("Saved face snapshot to %s", face_path)
+            try:
+                ok = cv2.imwrite(str(face_path), face_crop)
+                if ok:
+                    event.face_snapshot_path = str(face_path)
+                    logger.info("Saved face snapshot to %s", face_path)
+                else:
+                    event.face_snapshot_path = ""
+                    logger.warning("cv2.imwrite returned False for face snapshot %s", face_path)
+            except Exception as e:
+                logger.error("Error saving face snapshot: %s", e)
+                event.face_snapshot_path = ""
