@@ -1,0 +1,62 @@
+{
+  "validation_phase": "P10.1 External-Video Validation",
+  "run_id": "run_20261120_164135",
+  "timestamp": "2026-11-20T16:41:36.950847",
+  "videos": [
+    {
+      "clip_id": "P10_EXT_01",
+      "pexels_id": "7475676",
+      "filename": "7475676-hd_1920_1080_25fps.mp4",
+      "scenario": "Person carrying garbage bag without releasing it",
+      "metadata": {
+        "exists": true,
+        "sha256": "b48fccee4818128ec70bf9784a77625a189bd2caa3828c416bcafa8eafeecc62",
+        "size_bytes": 10514772
+      }
+    },
+    {
+      "clip_id": "P10_EXT_02",
+      "pexels_id": "5698059",
+      "filename": "5698059-hd_1920_1080_30fps.mp4",
+      "scenario": "Person placing garbage into designated bin",
+      "metadata": {
+        "exists": true,
+        "sha256": "8b84dbb4b6f0d5e19df4a325587bb88cb36adc9c587d36cec640a2319b2d986b",
+        "size_bytes": 6409989
+      }
+    },
+    {
+      "clip_id": "P10_EXT_03",
+      "pexels_id": "6914406",
+      "filename": "6914406-uhd_3840_2160_25fps.mp4",
+      "scenario": "Multiple people throwing paper into bin",
+      "metadata": {
+        "exists": true,
+        "sha256": "32e24aa6193a16d4a2a7bfc42121734e1965427f49720a22e3f0e0da574e7b64",
+        "size_bytes": 38381315
+      }
+    },
+    {
+      "clip_id": "P10_EXT_04",
+      "pexels_id": "17505027",
+      "filename": "17505027-hd_1920_1080_30fps.mp4",
+      "scenario": "Pedestrians walking in park with no waste",
+      "metadata": {
+        "exists": true,
+        "sha256": "d4b02436db9039ee3d4bc5ee157b6bdc7a328cda3cec80c80f226148843c1d92",
+        "size_bytes": 15400550
+      }
+    },
+    {
+      "clip_id": "P10_EXT_05",
+      "pexels_id": "7056804",
+      "filename": "7056804-uhd_2160_3744_30fps.mp4",
+      "scenario": "Person collecting litter (clean-up)",
+      "metadata": {
+        "exists": true,
+        "sha256": "af639a61f5e331bff9e797fab6fe9107d3238316578d1d4da69e74ee4dc80935",
+        "size_bytes": 78466469
+      }
+    }
+  ]
+}

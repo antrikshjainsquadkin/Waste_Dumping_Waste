@@ -1,0 +1,40 @@
+{
+  "model_integrity": true,
+  "operator_menu": {
+    "invalid_choice_handling": true,
+    "exit_workflow": true,
+    "stream_url_credential_masking": true,
+    "webcam_probing": true,
+    "file_picker_cancel_returns_safely": true,
+    "unsupported_video_extension_rejected": true,
+    "view_event_records_immutable": true
+  },
+  "face_workflows": {
+    "enrolled_person_identified": true,
+    "unknown_person_returns_unknown": true,
+    "ambiguous_match_detected": true,
+    "registry_recovery_from_reference": true
+  },
+  "scenarios": {
+    "A. Person walks past without waste": true,
+    "B. Unknown person without waste": true,
+    "C. Person holds bottle at waist level": true,
+    "D. Person holds bottle near mouth/chin": true,
+    "E. Person carries waste without releasing": true,
+    "F. Person releases waste onto open ground": true,
+    "G. Person places waste into designated bin": true,
+    "H. Person passes existing litter (passerby)": true,
+    "I. Multiple people ambiguous attribution": true,
+    "J. Registered bystander + unknown thrower": true,
+    "K. Multiple distinct waste objects": true,
+    "L. Waste temporarily occluded (ByteTrack S2)": true,
+    "Chest-Held Large Object (Known Limitation)": true
+  },
+  "overlay": {
+    "idle_monitoring_hud": true,
+    "open_ground_dumping_alert": true,
+    "bin_disposal_compliant": true,
+    "overlay_expiration": true
+  },
+  "csv_evidence_pairing": true
+}

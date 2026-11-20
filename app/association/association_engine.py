@@ -90,10 +90,17 @@ class WasteTrajectoryTracker:
             wy = self.current_bbox.center[1]
 
             is_in_hand_volume = (holding_upper_y <= wy <= holding_lower_y)
+
+            # Spatial overlap requires genuine physical intersection or touching contact.
+            # Center-to-center distance alone must NEVER qualify as holding.
+            dx = max(0.0, max(p.bbox.x1 - self.current_bbox.x2, self.current_bbox.x1 - p.bbox.x2))
+            dy = max(0.0, max(p.bbox.y1 - self.current_bbox.y2, self.current_bbox.y1 - p.bbox.y2))
+            box_separation = math.hypot(dx, dy)
+
             is_spatial_overlap = (
                 iou >= holding_iou_thresh
-                or ioa >= 0.15
-                or dist <= (p.bbox.width * 0.65 + 25.0)
+                or ioa >= 0.10
+                or box_separation <= 10.0
             )
 
             is_holding = is_in_hand_volume and is_spatial_overlap and (not is_stationary_on_ground)
@@ -113,6 +120,8 @@ class WasteTrajectoryTracker:
                 self.initial_unheld_frames += 1
                 if self.initial_unheld_frames >= 2:
                     self.is_pre_existing_litter = True
+                if self.stationary_anchor_pos is None:
+                    self.stationary_anchor_pos = self.current_bbox.center
 
 
 class PersonWasteAssociationEngine:
@@ -239,8 +248,12 @@ class PersonWasteAssociationEngine:
                     py1, py2 = p_curr.bbox.y1, p_curr.bbox.y2
                     ph = p_curr.bbox.height
                     wy = w.bbox.center[1]
-                    # If still inside person's holding volume or touching, not released yet
-                    if (py1 <= wy <= py1 + 0.82 * ph) and (dist < self.holding_max_dist * 0.65 or w.bbox.iou(p_curr.bbox) > 0.05):
+                    # If still inside person's holding volume or overlapping, not released yet
+                    if (py1 <= wy <= py1 + 0.85 * ph) and (
+                        dist < self.holding_max_dist * 0.65
+                        or w.bbox.iou(p_curr.bbox) > 0.03
+                        or w.bbox.ioa(p_curr.bbox) >= 0.10
+                    ):
                         has_separated = False
 
             if not has_separated:

@@ -30,6 +30,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.coordination.coordinator import ApplicationCoordinator
 from app.recognition.face_adapter import FaceRecognitionAdapter
 from app.storage.csv_storage import CSVEventStorage
+from app.ui.event_overlay import EventStatusOverlay
+
 
 logger = logging.getLogger("OperatorMenu")
 
@@ -434,6 +436,7 @@ class OperatorMenu:
     ) -> None:
         """Execute coordinator loop with console logging and optional preview."""
         last_log_time = time.time()
+        status_overlay = EventStatusOverlay(display_duration_seconds=12.0)
 
         def frame_callback(frame, persons, waste, events):
             nonlocal last_log_time
@@ -461,6 +464,7 @@ class OperatorMenu:
                     print(f" Zone:               {ev.ground_zone_id}")
                     print("!" * 70 + "\n")
 
+            # 1. Draw detection bounding boxes
             for p in persons:
                 x1, y1, x2, y2 = p.bbox.to_xyxy_int()
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
@@ -471,12 +475,16 @@ class OperatorMenu:
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
                 cv2.putText(frame, f"{w.track_id} ({w.class_name})", (x1, max(20, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
+            # 2. Draw dynamic event status overlay HUD
+            status_overlay.draw(frame, new_events=events, tracked_persons=persons, tracked_waste=waste)
+
             try:
                 cv2.imshow(window_title, frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     coordinator.stop()
             except Exception:
                 pass
+
 
         try:
             coordinator.run(callback=frame_callback)

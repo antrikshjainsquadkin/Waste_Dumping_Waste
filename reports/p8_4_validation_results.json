@@ -1,0 +1,199 @@
+{
+  "provenance": {
+    "evidence_clips_count": 18,
+    "test_clip_exists": true,
+    "clips_info": [
+      {
+        "name": "evt_20261120_120457_0002_evidence.mp4",
+        "frames": 10,
+        "fps": 1.309,
+        "resolution": "640x480",
+        "size_bytes": 94837,
+        "type": "Live camera rolling-buffer event evidence clip"
+      },
+      {
+        "name": "evt_20261120_110246_0001_evidence.mp4",
+        "frames": 2,
+        "fps": 10.0,
+        "resolution": "640x480",
+        "size_bytes": 23563,
+        "type": "Live camera rolling-buffer event evidence clip"
+      },
+      {
+        "name": "evt_20261119_185529_0007_evidence.mp4",
+        "frames": 9,
+        "fps": 1.0,
+        "resolution": "640x480",
+        "size_bytes": 128662,
+        "type": "Live camera rolling-buffer event evidence clip"
+      },
+      {
+        "name": "evt_20261119_185408_0005_evidence.mp4",
+        "frames": 2,
+        "fps": 1.15,
+        "resolution": "640x480",
+        "size_bytes": 24815,
+        "type": "Live camera rolling-buffer event evidence clip"
+      },
+      {
+        "name": "evt_20261119_185241_0002_evidence.mp4",
+        "frames": 10,
+        "fps": 1.0,
+        "resolution": "640x480",
+        "size_bytes": 108984,
+        "type": "Live camera rolling-buffer event evidence clip"
+      },
+      {
+        "name": "evt_20261119_185229_0001_evidence.mp4",
+        "frames": 12,
+        "fps": 1.167,
+        "resolution": "640x480",
+        "size_bytes": 192371,
+        "type": "Live camera rolling-buffer event evidence clip"
+      }
+    ],
+    "test_clip": {
+      "path": "c:\\Users\\A\\OneDrive\\Desktop\\Waste_dumping_v2\\data\\test_clip.mp4",
+      "frames": 30,
+      "fps": 10.0,
+      "resolution": "640x480",
+      "type": "Uninterrupted continuous reference recording"
+    }
+  },
+  "detection_conditions": [
+    {
+      "condition": "A. Person walking without waste (hair/face)",
+      "box": "BoundingBox(x1=260.0, y1=100.0, x2=340.0, y2=170.0)",
+      "conf": 0.65,
+      "rejected": true,
+      "expected_rejected": true,
+      "status": "PASS",
+      "reason": "Rejected by cephalic filter"
+    },
+    {
+      "condition": "A2. Person walking without waste (jacket)",
+      "box": "BoundingBox(x1=220.0, y1=200.0, x2=380.0, y2=340.0)",
+      "conf": 0.75,
+      "rejected": true,
+      "expected_rejected": true,
+      "status": "PASS",
+      "reason": "Rejected by clothing filter"
+    },
+    {
+      "condition": "B. Unknown person without waste (beard/neck)",
+      "box": "BoundingBox(x1=270.0, y1=150.0, x2=350.0, y2=260.0)",
+      "conf": 0.55,
+      "rejected": true,
+      "expected_rejected": true,
+      "status": "PASS",
+      "reason": "Rejected by cephalic filter (y2=260 <= 0.48*ph)"
+    },
+    {
+      "condition": "C. Bottle on ground",
+      "box": "BoundingBox(x1=450.0, y1=400.0, x2=500.0, y2=470.0)",
+      "conf": 0.7,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved on open ground"
+    },
+    {
+      "condition": "D. Bottle held at waist level (hand)",
+      "box": "BoundingBox(x1=385.0, y1=290.0, x2=425.0, y2=370.0)",
+      "conf": 0.58,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved at hand/waist level"
+    },
+    {
+      "condition": "E. Small bottle held against chest",
+      "box": "BoundingBox(x1=275.0, y1=220.0, x2=325.0, y2=300.0)",
+      "conf": 0.52,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved (rel_area=0.055 < 0.12, w=50 < 0.42*pw)"
+    },
+    {
+      "condition": "F. Bottle held near mouth/chin (drinking)",
+      "box": "BoundingBox(x1=280.0, y1=180.0, x2=320.0, y2=290.0)",
+      "conf": 0.6,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved (y2=290 > 0.48*ph, reaches waist/neck)"
+    },
+    {
+      "condition": "G1. Plastic bag held at waist (beside body)",
+      "box": "BoundingBox(x1=370.0, y1=280.0, x2=440.0, y2=380.0)",
+      "conf": 0.48,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved (IoA=0.428 < 0.70, not clothing)"
+    },
+    {
+      "condition": "G2. Large bag held center chest",
+      "box": "BoundingBox(x1=240.0, y1=260.0, x2=360.0, y2=350.0)",
+      "conf": 0.45,
+      "rejected": true,
+      "expected_rejected": true,
+      "status": "PASS",
+      "reason": "Suppressed by large clothing filter (KNOWN LIMITATION)"
+    },
+    {
+      "condition": "H1. Large cardboard on ground (30% frame)",
+      "box": "BoundingBox(x1=100.0, y1=200.0, x2=500.0, y2=430.0)",
+      "conf": 0.82,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved (area=92,000 px^2, 30% of frame < 48%)"
+    },
+    {
+      "condition": "H2. Oversized room floor false box (72% frame)",
+      "box": "BoundingBox(x1=0.4, y1=133.6, x2=639.7, y2=480.0)",
+      "conf": 0.74,
+      "rejected": true,
+      "expected_rejected": true,
+      "status": "PASS",
+      "reason": "Rejected by oversized filter (area=72.1% >= 48%)"
+    },
+    {
+      "condition": "I1. Bottle A (left)",
+      "box": "BoundingBox(x1=450.0, y1=410.0, x2=480.0, y2=470.0)",
+      "conf": 0.65,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved as distinct object A"
+    },
+    {
+      "condition": "I2. Bottle B (right, 15px gap)",
+      "box": "BoundingBox(x1=495.0, y1=410.0, x2=525.0, y2=470.0)",
+      "conf": 0.62,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved as distinct object B (IoU=0, IoA=0)"
+    },
+    {
+      "condition": "K. Existing litter on ground",
+      "box": "BoundingBox(x1=120.0, y1=420.0, x2=160.0, y2=470.0)",
+      "conf": 0.55,
+      "rejected": false,
+      "expected_rejected": false,
+      "status": "PASS",
+      "reason": "Preserved ground litter (no person contact)"
+    }
+  ],
+  "tracking": {
+    "stage2_occlusion_retained": true,
+    "stage3_release_reconnected": true,
+    "duplicate_reduced": true,
+    "distinct_tracks_kept": true
+  },
+  "disposal_sequence": true,
+  "csv_evidence_pairing": true
+}

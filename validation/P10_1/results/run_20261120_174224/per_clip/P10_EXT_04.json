@@ -1,0 +1,112 @@
+{
+  "clip_id": "P10_EXT_04",
+  "filename": "17505027-hd_1920_1080_30fps.mp4",
+  "pexels_id": "17505027",
+  "scenario": "Pedestrians walking in park with no waste",
+  "expected_behavior": "People strolling in a park setting without carrying any waste. System must reject false positives on hair, clothing, faces, and emit 0 dumping events.",
+  "video_metadata": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 29.97,
+    "total_frames": 619,
+    "duration_seconds": 20.65,
+    "sha256": "d4b02436db9039ee3d4bc5ee157b6bdc7a328cda3cec80c80f226148843c1d92",
+    "size_bytes": 15400550
+  },
+  "performance": {
+    "processed_frames": 619,
+    "elapsed_seconds": 291.37,
+    "average_fps": 2.12,
+    "peak_memory_mb": 680.46
+  },
+  "events_detected_count": 6,
+  "events": [
+    {
+      "event_id": "evt_20261120_175546_0001",
+      "event_type": "OPEN_GROUND_LITTERING",
+      "confirmed_at": "2026-11-20T12:25:46.728479+00:00",
+      "estimated_release_timestamp": 3058.9061483,
+      "waste_category": "recyclable",
+      "waste_confidence": 0.14074477553367615,
+      "waste_track_id": "Waste_4",
+      "person_track_id": "Person_10",
+      "recognized_person": "Unknown",
+      "attribution_status": "ATTRIBUTED",
+      "recognition_status": "NO_FACE",
+      "ground_zone_id": "open_ground_default"
+    },
+    {
+      "event_id": "evt_20261120_175553_0002",
+      "event_type": "BIN_DISPOSAL",
+      "confirmed_at": "2026-11-20T12:25:53.424179+00:00",
+      "estimated_release_timestamp": 3070.8684812,
+      "waste_category": "recyclable",
+      "waste_confidence": 0.3023681342601776,
+      "waste_track_id": "Waste_5",
+      "person_track_id": null,
+      "recognized_person": "Unknown",
+      "attribution_status": "UNATTRIBUTED",
+      "recognition_status": "SKIPPED",
+      "ground_zone_id": "bin_primary"
+    },
+    {
+      "event_id": "evt_20261120_175655_0003",
+      "event_type": "BIN_DISPOSAL",
+      "confirmed_at": "2026-11-20T12:26:55.340052+00:00",
+      "estimated_release_timestamp": 3132.7797742,
+      "waste_category": "recyclable",
+      "waste_confidence": 0.43121153116226196,
+      "waste_track_id": "Waste_6",
+      "person_track_id": null,
+      "recognized_person": "Unknown",
+      "attribution_status": "UNATTRIBUTED",
+      "recognition_status": "SKIPPED",
+      "ground_zone_id": "bin_primary"
+    },
+    {
+      "event_id": "evt_20261120_175756_0004",
+      "event_type": "BIN_DISPOSAL",
+      "confirmed_at": "2026-11-20T12:27:56.617569+00:00",
+      "estimated_release_timestamp": 3194.0755308,
+      "waste_category": "recyclable",
+      "waste_confidence": 0.40488091111183167,
+      "waste_track_id": "Waste_7",
+      "person_track_id": null,
+      "recognized_person": "Unknown",
+      "attribution_status": "UNATTRIBUTED",
+      "recognition_status": "SKIPPED",
+      "ground_zone_id": "bin_primary"
+    },
+    {
+      "event_id": "evt_20261120_175825_0005",
+      "event_type": "BIN_DISPOSAL",
+      "confirmed_at": "2026-11-20T12:28:25.082699+00:00",
+      "estimated_release_timestamp": 3222.5516639,
+      "waste_category": "recyclable",
+      "waste_confidence": 0.39745059609413147,
+      "waste_track_id": "Waste_8",
+      "person_track_id": null,
+      "recognized_person": "Unknown",
+      "attribution_status": "UNATTRIBUTED",
+      "recognition_status": "SKIPPED",
+      "ground_zone_id": "bin_primary"
+    },
+    {
+      "event_id": "evt_20261120_175939_0006",
+      "event_type": "BIN_DISPOSAL",
+      "confirmed_at": "2026-11-20T12:29:39.735635+00:00",
+      "estimated_release_timestamp": 3297.177124,
+      "waste_category": "recyclable",
+      "waste_confidence": 0.40949979424476624,
+      "waste_track_id": "Waste_11",
+      "person_track_id": null,
+      "recognized_person": "Unknown",
+      "attribution_status": "UNATTRIBUTED",
+      "recognition_status": "SKIPPED",
+      "ground_zone_id": "bin_primary"
+    }
+  ],
+  "verdict": "FAIL",
+  "verdict_rationale": "False positive dumping events emitted on pedestrians: ['evt_20261120_175546_0001', 'evt_20261120_175553_0002', 'evt_20261120_175655_0003', 'evt_20261120_175756_0004', 'evt_20261120_175825_0005', 'evt_20261120_175939_0006']",
+  "log_file": "c:\\Users\\A\\OneDrive\\Desktop\\Waste_dumping_v2\\validation\\P10_1\\results\\run_20261120_174224\\logs\\P10_EXT_04.log"
+}

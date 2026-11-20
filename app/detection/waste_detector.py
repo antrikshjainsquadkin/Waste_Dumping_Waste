@@ -70,10 +70,12 @@ class WasteDetector:
         if self.model is None or frame is None or frame.size == 0:
             return []
 
+        # Predict down to 0.10 to feed ByteTrack two-stage matching for occluded items
+        predict_conf = min(self.confidence_threshold, 0.10)
         try:
             results = self.model.predict(
                 source=frame,
-                conf=self.confidence_threshold,
+                conf=predict_conf,
                 imgsz=self.image_size,
                 device=self.device,
                 verbose=False,
@@ -82,14 +84,17 @@ class WasteDetector:
             logger.error("WasteDetector prediction failed: %s", e)
             return []
 
-        detections: List[Detection] = []
         if not results or len(results) == 0:
-            return detections
+            return []
 
         boxes = results[0].boxes
         if boxes is None or len(boxes) == 0:
-            return detections
+            return []
 
+        fh, fw = frame.shape[:2]
+        frame_area = float(fw * fh) if (fw > 0 and fh > 0) else 1.0
+
+        raw_candidates: List[Detection] = []
         for box in boxes:
             cls_id = int(box.cls.cpu().numpy()[0])
             conf = float(box.conf.cpu().numpy()[0])
@@ -102,11 +107,36 @@ class WasteDetector:
             )
             cname = self.class_names.get(cls_id, f"waste_{cls_id}")
 
-            # 3-Phase Non-Waste False Detection Rejection
+            # 1. Oversized False Bounding Box Rejection:
+            # Candidate waste boxes covering >= 48% of the entire frame area or spanning >= 88% width
+            # and >= 60% height represent room/wall/background false alarms, not discrete waste items.
+            area_frac = bbox.area / frame_area
+            if area_frac >= 0.48 or (bbox.width >= 0.88 * fw and bbox.height >= 0.60 * fh):
+                logger.debug("Rejecting oversized frame-level false detection: box=%s, area_frac=%.2f", bbox, area_frac)
+                continue
+
+            # 2. Multi-Phase False Human Detection Rejection
             if person_boxes and self._is_false_human_detection(bbox, conf, person_boxes):
                 continue
 
-            detections.append(Detection(class_id=cls_id, class_name=cname, confidence=conf, bbox=bbox))
+            raw_candidates.append(Detection(class_id=cls_id, class_name=cname, confidence=conf, bbox=bbox))
+
+        # 3. Class-Aware Duplicate & Containment Suppression:
+        # Avoid duplicate tracks for the same physical object while preserving distinct adjacent items
+        raw_candidates.sort(key=lambda d: d.confidence, reverse=True)
+        detections: List[Detection] = []
+        for cand in raw_candidates:
+            is_dup = False
+            for accepted in detections:
+                if accepted.class_id == cand.class_id:
+                    iou = cand.bbox.iou(accepted.bbox)
+                    ioa1 = cand.bbox.ioa(accepted.bbox)
+                    ioa2 = accepted.bbox.ioa(cand.bbox)
+                    if iou >= 0.38 or ioa1 >= 0.65 or ioa2 >= 0.65:
+                        is_dup = True
+                        break
+            if not is_dup:
+                detections.append(cand)
 
         return detections
 
@@ -127,19 +157,29 @@ class WasteDetector:
             ph = pbox.height
             pw = pbox.width
 
-            # 1. Head / Hair False Positive Rejection:
-            # Anatomically, the top of pbox (pbox.y1) is the crown of the head.
-            # Detections starting at/near the scalp (pbox.y1) and centered in the cranial zone
-            # (<= 22% of person height) are hair/facial features misclassified as recyclable/residual.
-            is_at_head_top = waste_box.y1 <= (pbox.y1 + 0.08 * ph)
-            is_in_cranial_zone = waste_box.center[1] <= (pbox.y1 + 0.22 * ph)
-            is_above_neck = waste_box.y2 <= (pbox.y1 + 0.32 * ph)
+            # 1. Head / Hair / Face / Neck False Positive Rejection:
+            # Anatomically, the upper 48% of the person bounding box corresponds to
+            # head crown, hair, forehead, eyes, nose, cheeks, mouth, jaw/chin, and neck/collar.
+            # Detections whose center is in this cranial/facial region (<= 32% of person height),
+            # with top starting in the head/face zone (<= 22% of height),
+            # bottom not extending into waist/hand carrying region (<= 48% of height),
+            # horizontally aligned with the head/upper body, and overlapping the person (ioa >= 0.45)
+            # are facial features, hair, or neck misclassified as recyclable/residual.
+            is_at_head_or_face = waste_box.y1 <= (pbox.y1 + 0.22 * ph)
+            is_in_cranial_facial_zone = waste_box.center[1] <= (pbox.y1 + 0.32 * ph)
+            is_above_torso = waste_box.y2 <= (pbox.y1 + 0.48 * ph)
             is_horizontally_within_head = (
-                waste_box.center[0] >= (pbox.x1 - 15.0)
-                and waste_box.center[0] <= (pbox.x2 + 15.0)
+                waste_box.center[0] >= (pbox.x1 - 25.0)
+                and waste_box.center[0] <= (pbox.x2 + 25.0)
             )
-            if is_at_head_top and is_in_cranial_zone and is_above_neck and is_horizontally_within_head and ioa >= 0.50:
-                logger.debug("Rejecting head/hair false positive: box=%s, conf=%.3f", waste_box, confidence)
+            if (
+                is_at_head_or_face
+                and is_in_cranial_facial_zone
+                and is_above_torso
+                and is_horizontally_within_head
+                and ioa >= 0.45
+            ):
+                logger.debug("Rejecting head/face/hair false positive: box=%s, conf=%.3f", waste_box, confidence)
                 return True
 
             # 2. Full / Substantial Body match: waste box almost coincides with person box
@@ -150,9 +190,9 @@ class WasteDetector:
             # 3. Large Torso / Clothing match:
             # Major clothing items (entire shirt, coat, pants, torso patch) spanning significant portion of person area
             is_large_clothing = (
-                ioa >= 0.75
-                and rel_area >= 0.15
-                and (waste_box.width >= (0.50 * pw) or rel_area >= 0.25)
+                ioa >= 0.70
+                and rel_area >= 0.12
+                and (waste_box.width >= (0.42 * pw) or rel_area >= 0.20)
             )
             if is_large_clothing:
                 logger.debug("Rejecting large torso/clothing detection: box=%s, rel_area=%.2f", waste_box, rel_area)

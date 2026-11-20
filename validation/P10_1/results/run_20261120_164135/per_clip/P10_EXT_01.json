@@ -1,0 +1,27 @@
+{
+  "clip_id": "P10_EXT_01",
+  "filename": "7475676-hd_1920_1080_25fps.mp4",
+  "pexels_id": "7475676",
+  "scenario": "Person carrying garbage bag without releasing it",
+  "expected_behavior": "Person carries a garbage bag along sidewalk/street without dropping or releasing it. The bag remains in person holding volume.",
+  "video_metadata": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 25.0,
+    "total_frames": 426,
+    "duration_seconds": 17.04,
+    "sha256": "b48fccee4818128ec70bf9784a77625a189bd2caa3828c416bcafa8eafeecc62",
+    "size_bytes": 10514772
+  },
+  "performance": {
+    "processed_frames": 426,
+    "elapsed_seconds": 255.64,
+    "average_fps": 1.67,
+    "peak_memory_mb": 557.64
+  },
+  "events_detected_count": 0,
+  "events": [],
+  "verdict": "PASS",
+  "verdict_rationale": "Zero dumping events emitted while person was carrying the bag. Bag correctly retained in holding volume without false release.",
+  "log_file": "c:\\Users\\A\\OneDrive\\Desktop\\Waste_dumping_v2\\validation\\P10_1\\results\\run_20261120_164135\\logs\\P10_EXT_01.log"
+}

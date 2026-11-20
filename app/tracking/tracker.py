@@ -21,12 +21,14 @@ class SingleCategoryTracker:
         low_thresh: float = 0.10,
         match_thresh: float = 0.70,
         max_lost_frames: int = 30,
+        enable_trajectory_reconnection: bool = False,
     ) -> None:
         self.prefix = namespace_prefix
         self.high_thresh = float(high_thresh)
         self.low_thresh = float(low_thresh)
         self.match_thresh = float(match_thresh)
         self.max_lost_frames = int(max_lost_frames)
+        self.enable_trajectory_reconnection = bool(enable_trajectory_reconnection)
 
         self._next_id = 1
         self._active_tracks: Dict[int, TrackedObject] = {}
@@ -87,7 +89,43 @@ class SingleCategoryTracker:
                 self._lost_frames[tid] = 0
                 unmatched_tracks.discard(tid)
 
-        # 4. Increment lost frames for unmatched tracks and prune dead tracks
+        # 4. Stage 3: Trajectory continuity for dropped/released objects or recently occluded tracks
+        unmatched_high_final = []
+        if self.enable_trajectory_reconnection and unmatched_high_dets:
+            lost_track_ids = [tid for tid, lost in self._lost_frames.items() if 0 < lost <= min(20, self.max_lost_frames)]
+            candidate_tracks = list(unmatched_tracks) + lost_track_ids
+
+            for d_idx in unmatched_high_dets:
+                det = high_dets[d_idx]
+                best_tid = None
+                best_dist = float("inf")
+
+                for tid in candidate_tracks:
+                    track = self._active_tracks[tid]
+                    if track.class_name != det.class_name:
+                        continue
+                    dist = track.bbox.distance_to(det.bbox)
+                    dy = det.bbox.center[1] - track.bbox.center[1]
+                    # Drop release or displacement: dist <= 160 px, downward or nearby (dy >= -30)
+                    if dist <= 160.0 and dy >= -30.0 and dist < best_dist:
+                        best_dist = dist
+                        best_tid = tid
+
+                if best_tid is not None:
+                    self._active_tracks[best_tid].update(det.bbox, det.confidence, frame_idx, timestamp)
+                    self._lost_frames[best_tid] = 0
+                    unmatched_tracks.discard(best_tid)
+                    candidate_tracks.remove(best_tid)
+                    logger.debug(
+                        "Track %s_%s maintained across release/motion (dist=%.1fpx)",
+                        self.prefix, best_tid, best_dist
+                    )
+                else:
+                    unmatched_high_final.append(d_idx)
+        else:
+            unmatched_high_final = unmatched_high_dets
+
+        # 5. Increment lost frames for unmatched tracks and prune dead tracks
         for tid in unmatched_tracks:
             self._lost_frames[tid] = self._lost_frames.get(tid, 0) + 1
 
@@ -96,8 +134,8 @@ class SingleCategoryTracker:
             self._active_tracks.pop(tid, None)
             self._lost_frames.pop(tid, None)
 
-        # 5. Initialize new tracks for unmatched high-confidence detections
-        for d_idx in unmatched_high_dets:
+        # 6. Initialize new tracks for genuinely new high-confidence detections
+        for d_idx in unmatched_high_final:
             det = high_dets[d_idx]
             tid = self._next_id
             self._next_id += 1
@@ -185,6 +223,7 @@ class MultiObjectTrackingService:
             low_thresh=low_thresh,
             match_thresh=match_thresh,
             max_lost_frames=track_buffer,
+            enable_trajectory_reconnection=False,
         )
         self.waste_tracker = SingleCategoryTracker(
             namespace_prefix="Waste",
@@ -192,6 +231,7 @@ class MultiObjectTrackingService:
             low_thresh=low_thresh,
             match_thresh=match_thresh,
             max_lost_frames=track_buffer,
+            enable_trajectory_reconnection=True,
         )
 
     def reset(self) -> None:

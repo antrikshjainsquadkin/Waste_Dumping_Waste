@@ -1,0 +1,27 @@
+{
+  "clip_id": "P10_EXT_02",
+  "filename": "5698059-hd_1920_1080_30fps.mp4",
+  "pexels_id": "5698059",
+  "scenario": "Person placing garbage into designated bin",
+  "expected_behavior": "Person places garbage into a designated public trash can / recycling bin. If bin does not match configured primary bin polygon, evaluate geometry alignment.",
+  "video_metadata": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 29.97,
+    "total_frames": 371,
+    "duration_seconds": 12.38,
+    "sha256": "8b84dbb4b6f0d5e19df4a325587bb88cb36adc9c587d36cec640a2319b2d986b",
+    "size_bytes": 6409989
+  },
+  "performance": {
+    "processed_frames": 371,
+    "elapsed_seconds": 216.2,
+    "average_fps": 1.72,
+    "peak_memory_mb": 522.86
+  },
+  "events_detected_count": 0,
+  "events": [],
+  "verdict": "NOT_COMPARABLE",
+  "verdict_rationale": "No event emitted. Bin location in stock footage does not align with default zones.yaml bin polygon ([[0.70, 0.55], [0.95, 0.95]]), preventing stationary trigger inside configured bin zone.",
+  "log_file": "c:\\Users\\A\\OneDrive\\Desktop\\Waste_dumping_v2\\validation\\P10_1\\results\\run_20261120_174224\\logs\\P10_EXT_02.log"
+}

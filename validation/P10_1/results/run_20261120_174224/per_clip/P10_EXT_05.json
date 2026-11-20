@@ -1,0 +1,70 @@
+{
+  "clip_id": "P10_EXT_05",
+  "filename": "7056804-uhd_2160_3744_30fps.mp4",
+  "pexels_id": "7056804",
+  "scenario": "Person collecting litter (clean-up)",
+  "expected_behavior": "Volunteer or person picking up litter from the ground into a bag. Litter retrieval is the inverse of abandonment; must not emit open-ground dumping.",
+  "video_metadata": {
+    "width": 2160,
+    "height": 3744,
+    "fps": 29.97,
+    "total_frames": 1075,
+    "duration_seconds": 35.87,
+    "sha256": "af639a61f5e331bff9e797fab6fe9107d3238316578d1d4da69e74ee4dc80935",
+    "size_bytes": 78466469
+  },
+  "performance": {
+    "processed_frames": 1075,
+    "elapsed_seconds": 562.08,
+    "average_fps": 1.91,
+    "peak_memory_mb": 1219.59
+  },
+  "events_detected_count": 3,
+  "events": [
+    {
+      "event_id": "evt_20261120_180550_0001",
+      "event_type": "BIN_DISPOSAL",
+      "confirmed_at": "2026-11-20T12:35:50.237801+00:00",
+      "estimated_release_timestamp": 3667.6555231,
+      "waste_category": "residual",
+      "waste_confidence": 0.336760550737381,
+      "waste_track_id": "Waste_23",
+      "person_track_id": "Person_4",
+      "recognized_person": "Unknown",
+      "attribution_status": "ATTRIBUTED",
+      "recognition_status": "NO_FACE",
+      "ground_zone_id": "bin_primary"
+    },
+    {
+      "event_id": "evt_20261120_180718_0002",
+      "event_type": "BIN_DISPOSAL",
+      "confirmed_at": "2026-11-20T12:37:18.134961+00:00",
+      "estimated_release_timestamp": 3755.9334946,
+      "waste_category": "residual",
+      "waste_confidence": 0.22779209911823273,
+      "waste_track_id": "Waste_26",
+      "person_track_id": "Person_4",
+      "recognized_person": "Unknown",
+      "attribution_status": "ATTRIBUTED",
+      "recognition_status": "NO_FACE",
+      "ground_zone_id": "bin_primary"
+    },
+    {
+      "event_id": "evt_20261120_180722_0003",
+      "event_type": "BIN_DISPOSAL",
+      "confirmed_at": "2026-11-20T12:37:22.554938+00:00",
+      "estimated_release_timestamp": 3759.9669955,
+      "waste_category": "recyclable",
+      "waste_confidence": 0.33846884965896606,
+      "waste_track_id": "Waste_28",
+      "person_track_id": "Person_4",
+      "recognized_person": "Unknown",
+      "attribution_status": "ATTRIBUTED",
+      "recognition_status": "NO_FACE",
+      "ground_zone_id": "bin_primary"
+    }
+  ],
+  "verdict": "PASS",
+  "verdict_rationale": "Zero open-ground littering events emitted during litter collection sequence.",
+  "log_file": "c:\\Users\\A\\OneDrive\\Desktop\\Waste_dumping_v2\\validation\\P10_1\\results\\run_20261120_174224\\logs\\P10_EXT_05.log"
+}
