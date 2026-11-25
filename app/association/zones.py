@@ -48,9 +48,17 @@ class DetectionZone:
         return dist >= 0
 
     def contains_box(self, bbox: BoundingBox, frame_w: int, frame_h: int) -> bool:
-        """Check if bottom center of bounding box touches zone."""
-        # For ground contact, the bottom edge / bottom-center of the object touches the ground
+        """Check if bounding box touches zone.
+        For ground contact, the bottom-center of the object touches the ground.
+        For receptacle/bin zones, require both bottom-center and object center
+        to fall within the receptacle boundary to verify physical placement inside.
+        """
         bottom_center = ((bbox.x1 + bbox.x2) / 2.0, bbox.y2)
+        if self.zone_type == "bin":
+            return (
+                self.contains_point(bottom_center, frame_w, frame_h)
+                and self.contains_point(bbox.center, frame_w, frame_h)
+            )
         return self.contains_point(bottom_center, frame_w, frame_h)
 
 

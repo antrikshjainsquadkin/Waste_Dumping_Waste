@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import datetime
 import logging
 import math
@@ -20,6 +21,23 @@ from app.common_types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PhysicalDeposit:
+    """Represents a confirmed or ambient physical waste deposit within a zone."""
+    bbox: BoundingBox
+    zone_id: str
+    confirmed_timestamp: float
+    last_observed_timestamp: float = 0.0
+    last_associated_track_id: str = ""
+    consecutive_missing_frames: int = 0
+    is_ambient: bool = False
+    state: str = "PRESENT"  # "PRESENT", "REMOVED"
+
+    def __iter__(self):
+        """Allow backwards-compatible tuple unpacking: (dep_box, dep_zone, timestamp)."""
+        return iter((self.bbox, self.zone_id, self.confirmed_timestamp))
 
 
 class WasteTrajectoryTracker:
@@ -46,6 +64,8 @@ class WasteTrajectoryTracker:
         # Stationary & motion telemetry
         self.initial_unheld_frames = 0
         self.is_pre_existing_litter = False
+        self.initial_matching_bin: Optional[str] = None
+        self.is_ambient = False
         self.ground_persistence_frames = 0
         self.prev_center: Optional[Tuple[float, float]] = None
         self.prev_timestamp: Optional[float] = None
@@ -80,6 +100,16 @@ class WasteTrajectoryTracker:
             dist = self.current_bbox.distance_to(p.bbox)
             iou = self.current_bbox.iou(p.bbox)
             ioa = self.current_bbox.ioa(p.bbox)
+
+            # Scale plausibility: A person cannot hold an object that encloses them,
+            # is wider than their body while having comparable/larger area, or dominates them in scale
+            p_enclosed = p.bbox.ioa(self.current_bbox) >= 0.30
+            is_scale_implausible = (
+                (p_enclosed and self.current_bbox.width > (p.bbox.width * 1.25))
+                or (self.current_bbox.area >= p.bbox.area * 0.75 and self.current_bbox.width > (p.bbox.width * 1.25))
+            )
+            if is_scale_implausible:
+                continue
 
             # Check if waste is within person's torso or hand holding volume:
             # Below cranial head zone (> 15% height) and excluding ground-level foot zone (< 85% height)
@@ -151,11 +181,14 @@ class PersonWasteAssociationEngine:
         self._confirmed_events: List[ConfirmedLitterEvent] = []
         self._event_counter = 1
         self._last_event_time = 0.0
+        self._confirmed_deposits: List[PhysicalDeposit] = []
 
     def reset(self) -> None:
         """Reset state across video streams."""
         self._track_states.clear()
         self._last_event_time = 0.0
+        self._confirmed_deposits.clear()
+        self._event_counter = 1
 
     def get_trajectory(self, track_id: str) -> Optional[WasteTrajectoryTracker]:
         """Retrieve tracking state for a given waste track ID."""
@@ -173,14 +206,41 @@ class PersonWasteAssociationEngine:
         """Evaluate association and lifecycle for all active tracks in frame."""
         emitted_events: List[ConfirmedLitterEvent] = []
 
+        # Update physical deposit lifecycle states (detect removal and re-arm)
+        for dep in self._confirmed_deposits:
+            if dep.state != "PRESENT":
+                continue
+            # Check if any currently tracked waste matches this physical deposit
+            matched = any(w.bbox.iou(dep.bbox) >= 0.70 for w in waste_items)
+            if matched:
+                dep.consecutive_missing_frames = 0
+                dep.last_observed_timestamp = timestamp
+            else:
+                # If not detected, check if a person is occluding the deposit location
+                is_occluded = any(
+                    p.bbox.iou(dep.bbox) > 0.0 or dep.bbox.ioa(p.bbox) > 0.10
+                    for p in persons
+                )
+                if not is_occluded:
+                    dep.consecutive_missing_frames += 1
+                    # ByteTrack max_lost_frames is 30 frames; missing beyond this without occlusion confirms removal
+                    if dep.consecutive_missing_frames > 30:
+                        dep.state = "REMOVED"
+                        logger.info(
+                            "Physical deposit in zone %s at %s confirmed REMOVED (missing for %d frames without occlusion). Location re-armed.",
+                            dep.zone_id, dep.bbox, dep.consecutive_missing_frames
+                        )
+
         # Update or create waste trajectory trackers
         active_waste_ids = set()
         for w in waste_items:
             active_waste_ids.add(w.track_id)
             if w.track_id not in self._track_states:
-                self._track_states[w.track_id] = WasteTrajectoryTracker(
-                    w.track_id, w.bbox, timestamp
-                )
+                initial_bin = self.zones.find_matching_bin(w.bbox, frame_w, frame_h)
+                traj = WasteTrajectoryTracker(w.track_id, w.bbox, timestamp)
+                if initial_bin is not None:
+                    traj.initial_matching_bin = initial_bin.zone_id
+                self._track_states[w.track_id] = traj
 
             traj = self._track_states[w.track_id]
             traj.current_bbox = w.bbox
@@ -191,10 +251,65 @@ class PersonWasteAssociationEngine:
             if traj.event_emitted:
                 continue
 
-            # 2. Check for Immediate Bin Disposal
+            # 2. Check for Receptacle Entry & Ambient Receptacle Waste
             matching_bin = self.zones.find_matching_bin(w.bbox, frame_w, frame_h)
             if matching_bin is not None:
-                # Bin disposal confirmed!
+                # Check if this physical waste matches an active PRESENT deposit in this receptacle
+                matching_deposit = None
+                for dep in self._confirmed_deposits:
+                    if dep.state == "PRESENT" and dep.zone_id == matching_bin.zone_id and w.bbox.iou(dep.bbox) >= 0.70:
+                        matching_deposit = dep
+                        break
+
+                if matching_deposit is not None:
+                    # Update deposit observation
+                    matching_deposit.last_observed_timestamp = timestamp
+                    matching_deposit.bbox = w.bbox
+                    matching_deposit.consecutive_missing_frames = 0
+                    matching_deposit.last_associated_track_id = w.track_id
+
+                    traj.event_emitted = True
+                    traj.state = LitteringState.LITTERING_EVENT_CONFIRMED
+                    logger.debug(
+                        "Suppressed reacquisition duplicate bin disposal for track %s in zone %s",
+                        w.track_id, matching_bin.zone_id
+                    )
+                    continue
+
+                # Not matched to an active deposit. Determine if ambient pre-existing or genuine entry:
+                # Pre-existing ambient waste is an item that was already inside the bin upon initial observation
+                # and was never held or carried by any person.
+                has_person_holding = bool(
+                    traj.person_held_frames and any(f >= 1 for f in traj.person_held_frames.values())
+                )
+                is_ambient_receptacle_waste = (
+                    traj.initial_matching_bin is not None
+                    and not has_person_holding
+                )
+
+                if is_ambient_receptacle_waste:
+                    traj.is_ambient = True
+                    traj.is_pre_existing_litter = True
+                    traj.event_emitted = True
+                    traj.state = LitteringState.LITTERING_EVENT_CONFIRMED
+                    dep = PhysicalDeposit(
+                        bbox=w.bbox,
+                        zone_id=matching_bin.zone_id,
+                        confirmed_timestamp=timestamp,
+                        last_observed_timestamp=timestamp,
+                        last_associated_track_id=w.track_id,
+                        consecutive_missing_frames=0,
+                        is_ambient=True,
+                        state="PRESENT",
+                    )
+                    self._confirmed_deposits.append(dep)
+                    logger.info(
+                        "Identified and registered pre-existing ambient waste in receptacle %s: track %s (0 events emitted)",
+                        matching_bin.zone_id, w.track_id
+                    )
+                    continue
+
+                # Genuine Bin Disposal: either entered receptacle from outside or was held/carried by a person
                 event = self._confirm_event(
                     traj=traj,
                     event_type=DisposalEventType.BIN_DISPOSAL,
@@ -205,6 +320,17 @@ class PersonWasteAssociationEngine:
                     frame_idx=frame_idx,
                 )
                 if event:
+                    dep = PhysicalDeposit(
+                        bbox=w.bbox,
+                        zone_id=matching_bin.zone_id,
+                        confirmed_timestamp=timestamp,
+                        last_observed_timestamp=timestamp,
+                        last_associated_track_id=w.track_id,
+                        consecutive_missing_frames=0,
+                        is_ambient=False,
+                        state="PRESENT",
+                    )
+                    self._confirmed_deposits.append(dep)
                     emitted_events.append(event)
                 continue
 
@@ -316,17 +442,45 @@ class PersonWasteAssociationEngine:
 
             # Must satisfy full stationary_duration without rolling
             if stationary_time >= self.stationary_duration and not traj.is_rolling:
+                target_zone_id = ground_id or "open_ground_default"
+                # Check if this physical waste deposit matches an active PRESENT deposit in this ground zone
+                is_duplicate_deposit = any(
+                    dep.state == "PRESENT"
+                    and dep.zone_id == target_zone_id
+                    and w.bbox.iou(dep.bbox) >= 0.70
+                    for dep in self._confirmed_deposits
+                )
+                if is_duplicate_deposit:
+                    traj.event_emitted = True
+                    traj.state = LitteringState.LITTERING_EVENT_CONFIRMED
+                    logger.debug(
+                        "Suppressed reacquisition duplicate open ground littering for track %s in zone %s",
+                        w.track_id, target_zone_id
+                    )
+                    continue
+
                 # Littering confirmed!
                 event = self._confirm_event(
                     traj=traj,
                     event_type=DisposalEventType.OPEN_GROUND_LITTERING,
-                    zone_id=ground_id or "open_ground_default",
+                    zone_id=target_zone_id,
                     confidence=w.confidence,
                     category=w.class_name,
                     timestamp=timestamp,
                     frame_idx=frame_idx,
                 )
                 if event:
+                    dep = PhysicalDeposit(
+                        bbox=w.bbox,
+                        zone_id=target_zone_id,
+                        confirmed_timestamp=timestamp,
+                        last_observed_timestamp=timestamp,
+                        last_associated_track_id=w.track_id,
+                        consecutive_missing_frames=0,
+                        is_ambient=False,
+                        state="PRESENT",
+                    )
+                    self._confirmed_deposits.append(dep)
                     emitted_events.append(event)
 
         return emitted_events
@@ -402,7 +556,7 @@ class PersonWasteAssociationEngine:
         # Bystanders who merely walked or stood nearby (0 held frames) are strictly filtered out.
         held_candidates = {
             pid: score for pid, score in traj.person_scores.items()
-            if traj.person_held_frames.get(pid, 0) >= 1
+            if traj.person_held_frames.get(pid, 0) >= self.min_holding_frames
         }
 
         if not held_candidates:

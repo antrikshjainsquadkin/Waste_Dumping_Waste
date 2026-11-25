@@ -68,3 +68,4 @@ $RECYCLE.BIN/
 data/frames_*/
 data/evidence/*
 !data/evidence/.gitkeep
+validation/
